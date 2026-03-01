@@ -1,9 +1,12 @@
 #version 330 core
 
-uniform usampler2D textChar;
-uniform sampler2D textDepth;
+uniform mat4 view;
+uniform mat4 projection;
+uniform sampler2D matColor;
+uniform isampler2D matPos;
+uniform sampler2D matDepth;
 
-out vec4 color;
+out vec4 Color;
 
 const uint font[] = uint[](
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7E, 0x81, 0xA5, 0x81, 0xBD, 0x99, 0x81, 0x7E,
@@ -137,12 +140,17 @@ const uint font[] = uint[](
 );
 
 void main() {
-    ivec2 pos = ivec2(gl_FragCoord.x / 8, gl_FragCoord.y / 8);
-    uvec4 ch = texelFetch(textChar, pos, 0);
-    if (ch.a == 0u)
-        discard;
-    uint fontCh = font[ch.a * 8u + uint(gl_FragCoord.y) % 8u];
-    bool col = (fontCh & (0x80u >> (int(gl_FragCoord.x) % 8))) != 0u;
-    color = vec4(ch.rgb / 255.0f, 1.0f) * vec4(col, col, col, 1.0f);
-    gl_FragDepth = texelFetch(textDepth, pos, 0).x;
+    ivec2 pos = ivec2(gl_FragCoord.xy);
+    ivec3 voxPos = texelFetch(matPos, pos, 0).xyz;
+    //Color = texelFetch(matColor, pos, 0);
+    Color = vec4(voxPos % 16 / 15.0f, 1.0f);
+    gl_FragDepth = texelFetch(matDepth, pos, 0).r;
+    //ivec2 pos = ivec2(gl_FragCoord.x / 8, gl_FragCoord.y / 8);
+    //uvec4 ch = texelFetch(textChar, pos, 0);
+    //if (ch.a == 0u)
+    //    discard;
+    //uint fontCh = font[ch.a * 8u + uint(gl_FragCoord.y) % 8u];
+    //bool col = (fontCh & (0x80u >> (int(gl_FragCoord.x) % 8))) != 0u;
+    //Color = vec4(ch.rgb / 255.0f, 1.0f) * vec4(col, col, col, 1.0f);
+    //gl_FragDepth = texelFetch(textDepth, pos, 0).x;
 }

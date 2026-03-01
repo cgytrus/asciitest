@@ -21,10 +21,9 @@
 
 #include <default.vert.h>
 #include <default.frag.h>
-#include <defaultText.frag.h>
 
-#include <quad.vert.h>
-#include <quad.frag.h>
+#include <mat.vert.h>
+#include <mat.frag.h>
 
 struct {
     GLuint vao;
@@ -259,31 +258,44 @@ int main() {
     glEnable(GL_DEBUG_OUTPUT);
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 
-    GLuint textFbo, textChar, textDepth;
+    GLuint matFbo, matColor, matPos, matDepth;
 
-    glGenTextures(1, &textChar);
-    glBindTexture(GL_TEXTURE_2D, textChar);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8UI, window->w / 8, window->h / 8, 0, GL_RGBA_INTEGER, GL_UNSIGNED_BYTE, nullptr);
+    glGenTextures(1, &matColor);
+    glBindTexture(GL_TEXTURE_2D, matColor);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, window->w, window->h, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-    glGenTextures(1, &textDepth);
-    glBindTexture(GL_TEXTURE_2D, textDepth);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH24_STENCIL8, window->w / 8, window->h / 8, 0, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8, nullptr);
+    glGenTextures(1, &matPos);
+    glBindTexture(GL_TEXTURE_2D, matPos);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32I, window->w, window->h, 0, GL_RGB_INTEGER, GL_INT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    glGenTextures(1, &matDepth);
+    glBindTexture(GL_TEXTURE_2D, matDepth);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, window->w, window->h, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    glGenFramebuffers(1, &textFbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, textFbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textChar, 0);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, textDepth, 0);
+    glGenFramebuffers(1, &matFbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, matFbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, matColor, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, matPos, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, matDepth, 0);
+    GLenum drawBuffers[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+    glDrawBuffers(2, drawBuffers);
 
     GLint fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     if (fboStatus != GL_FRAMEBUFFER_COMPLETE) {
-        fmt::println("failed to create framebuffer: {}", fboStatus);
-        return -1;
+        fmt::println("failed to create framebuffer: {:x}", fboStatus);
+        glDeleteFramebuffers(1, &matFbo);
+        glDeleteTextures(1, &matColor);
+        glDeleteTextures(1, &matPos);
+        glDeleteTextures(1, &matDepth);
+        return fboStatus;
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -292,42 +304,46 @@ int main() {
     defaultShader.compile(DEFAULT_VERT, DEFAULT_FRAG);
     defaultShader.link();
     glUseProgram(defaultShader.program());
-    GLint defaultModelLoc = glGetUniformLocation(defaultShader.program(), "model");
-    GLint defaultViewLoc = glGetUniformLocation(defaultShader.program(), "view");
-    GLint defaultProjectionLoc = glGetUniformLocation(defaultShader.program(), "projection");
+    GLint modelLoc = glGetUniformLocation(defaultShader.program(), "model");
+    GLint viewLoc = glGetUniformLocation(defaultShader.program(), "view");
+    GLint projectionLoc = glGetUniformLocation(defaultShader.program(), "projection");
+    GLint colorLoc = glGetUniformLocation(defaultShader.program(), "color");
 
-    Shader defaultTextShader;
-    defaultTextShader.compile(DEFAULT_VERT, DEFAULTTEXT_FRAG);
-    defaultTextShader.link();
-    glUseProgram(defaultTextShader.program());
-    GLint defaultTextModelLoc = glGetUniformLocation(defaultTextShader.program(), "model");
-    GLint defaultTextViewLoc = glGetUniformLocation(defaultTextShader.program(), "view");
-    GLint defaultTextProjectionLoc = glGetUniformLocation(defaultTextShader.program(), "projection");
-    GLint defaultTextChLoc = glGetUniformLocation(defaultTextShader.program(), "ch");
-
-    Shader quadShader;
-    quadShader.compile(QUAD_VERT, QUAD_FRAG);
-    quadShader.link();
-    glUseProgram(quadShader.program());
-    GLint quadTextCharLoc = glGetUniformLocation(quadShader.program(), "textChar");
-    GLint quadTextDepthLoc = glGetUniformLocation(quadShader.program(), "textDepth");
-    glUniform1i(quadTextCharLoc, 0);
-    glUniform1i(quadTextDepthLoc, 1);
+    Shader matShader;
+    matShader.compile(MAT_VERT, MAT_FRAG);
+    matShader.link();
+    glUseProgram(matShader.program());
+    GLint matViewLoc = glGetUniformLocation(matShader.program(), "view");
+    GLint matProjectionLoc = glGetUniformLocation(matShader.program(), "projection");
+    GLint matColorLoc = glGetUniformLocation(matShader.program(), "matColor");
+    GLint matPosLoc = glGetUniformLocation(matShader.program(), "matPos");
+    GLint matDepthLoc = glGetUniformLocation(matShader.program(), "matDepth");
+    glUniform1i(matColorLoc, 0);
+    glUniform1i(matPosLoc, 1);
+    glUniform1i(matDepthLoc, 2);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, textChar);
+    glBindTexture(GL_TEXTURE_2D, matColor);
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, textDepth);
+    glBindTexture(GL_TEXTURE_2D, matPos);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, matDepth);
 
     s_cube.setup();
     s_quad.setup();
 
     float aspect = static_cast<float>(window->w) / static_cast<float>(window->h);
+    glm::mat4 model = 1.0f;
     glm::mat4 projection = glm::perspective(glm::radians(70.0f), aspect, 0.1f, 100.0f);
     glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
     glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
     glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
     float cameraYaw = 0.0f, cameraPitch = 0.0f;
     bool captured = false;
+
+    glUseProgram(defaultShader.program());
+    glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
+    glUseProgram(matShader.program());
+    glUniformMatrix4fv(matProjectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
     auto start = asp::Instant::now();
     auto time = 0.0f;
@@ -381,62 +397,57 @@ int main() {
 
         glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, textFbo);
-        glViewport(0, 0, window->w / 8, window->h / 8);
-        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glUseProgram(defaultShader.program());
+        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+        glUseProgram(matShader.program());
+        glUniformMatrix4fv(matViewLoc, 1, GL_FALSE, glm::value_ptr(view));
+
         glEnable(GL_DEPTH_TEST);
-        glDepthFunc(GL_LEQUAL);
+        glDepthFunc(GL_LESS);
+
         glEnable(GL_CULL_FACE);
 
-        glm::mat4 model = 1.0f;
+
+        glBindFramebuffer(GL_FRAMEBUFFER, matFbo);
+        glViewport(0, 0, window->w, window->h);
+        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
         //model = glm::rotate(model, glm::radians(-55.0f), glm::vec3(1.0f, 0.0f, 0.0f));
         //model = glm::rotate(model, time * glm::radians(50.0f), glm::vec3(0.5f, 1.0f, 0.0f));
         model = glm::translate(model, glm::vec3(2.0f, -0.5f, 0.0f));
-
-        glUseProgram(defaultTextShader.program());
-        glUniformMatrix4fv(defaultTextModelLoc, 1, GL_FALSE, glm::value_ptr(model));
-        glUniformMatrix4fv(defaultTextViewLoc, 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(defaultTextProjectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
-
-        glUniform1ui(defaultTextChLoc, '#');
+        glUseProgram(defaultShader.program());
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+        glUniform4f(colorLoc, 1.0f, 1.0f, 1.0f, 1.0f);
         s_cube.draw();
 
-        glUniform1ui(defaultTextChLoc, '+');
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        s_cube.draw();
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glViewport(0, 0, window->w, window->h);
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glEnable(GL_DEPTH_TEST);
 
         model = 1.0f;
-
         glUseProgram(defaultShader.program());
-        glUniformMatrix4fv(defaultModelLoc, 1, GL_FALSE, glm::value_ptr(model));
-        glUniformMatrix4fv(defaultViewLoc, 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(defaultProjectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
-
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+        glUniform4f(colorLoc, 1.0f, 0.5f, 0.2f, 1.0f);
         s_cube.draw();
 
-        glUseProgram(quadShader.program());
-
+        glUseProgram(matShader.program());
         s_quad.draw();
+
 
         RGFW_window_swapBuffers_OpenGL(window);
     }
 
-    glDeleteFramebuffers(1, &textFbo);
-    glDeleteTextures(1, &textChar);
-    glDeleteTextures(1, &textDepth);
+    glDeleteFramebuffers(1, &matFbo);
+    glDeleteTextures(1, &matColor);
+    glDeleteTextures(1, &matPos);
+    glDeleteTextures(1, &matDepth);
     s_cube.cleanup();
     s_quad.cleanup();
     defaultShader.cleanup();
-    defaultTextShader.cleanup();
-    quadShader.cleanup();
+    matShader.cleanup();
 
     RGFW_window_close(window);
     return 0;

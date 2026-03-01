@@ -57,7 +57,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/r
 
 add_resource(src/default.vert)
 add_resource(src/default.frag)
-add_resource(src/defaultText.frag)
 
-add_resource(src/quad.vert)
-add_resource(src/quad.frag)
+add_resource(src/mat.vert)
+add_resource(src/mat.frag)
