@@ -3,7 +3,7 @@
 uniform mat4 view;
 uniform mat4 projection;
 uniform sampler2D matColor;
-uniform isampler2D matPos;
+uniform sampler2D matPos;
 uniform sampler2D matDepth;
 
 out vec4 Color;
@@ -139,12 +139,34 @@ const uint font[] = uint[](
 0x00, 0x00, 0x3C, 0x3C, 0x3C, 0x3C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 );
 
+//int nextUpHit(float depth, ivec2 pos, int y) {
+//    for (int i = y; i < 720; i++) {
+//        ivec2 currPos = ivec2(pos.x, i);
+//        float currDepth = texelFetch(matDepth, currPos, 0).r;
+//        if (depth < currDepth)
+//            continue;
+//        ivec3 currVoxPos = texelFetch(matPos, currPos, 0).xyz;
+//    }
+//    return -1;
+//}
+//
+//int nextRightHit(float depth, ivec3 voxPos, ivec2 pos, int x) {
+//    for (int i = x; i < 1280; i++) {
+//        ivec2 currPos = ivec2(i, pos.y);
+//        float currDepth = texelFetch(matDepth, currPos, 0).r;
+//        if (depth < currDepth)
+//            continue;
+//        ivec3 currVoxPos = texelFetch(matPos, currPos, 0).xyz;
+//    }
+//    return -1;
+//}
+
 void main() {
     ivec2 pos = ivec2(gl_FragCoord.xy);
-    ivec3 voxPos = texelFetch(matPos, pos, 0).xyz;
     //Color = texelFetch(matColor, pos, 0);
-    Color = vec4(voxPos % 16 / 15.0f, 1.0f);
-    gl_FragDepth = texelFetch(matDepth, pos, 0).r;
+    Color = vec4(texelFetch(matPos, pos, 0).xyz, 1.0f);
+    gl_FragDepth = 1.0f - Color.z;
+    //gl_FragDepth = texelFetch(matDepth, pos, 0).r;
     //ivec2 pos = ivec2(gl_FragCoord.x / 8, gl_FragCoord.y / 8);
     //uvec4 ch = texelFetch(textChar, pos, 0);
     //if (ch.a == 0u)
